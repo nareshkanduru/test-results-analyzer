@@ -1,0 +1,93 @@
+name: Maven Test
+
+on:
+  # Run tests on PRs to verify code doesn't break before merge
+  pull_request:
+    types: [opened, synchronize]
+    branches: [master]
+    paths:
+      - '**/*.java'
+      - 'pom.xml'
+      - '!.github/workflows/**'
+  # Run tests after merge and collect coverage as canonical source of truth
+  push:
+    branches: [master]
+    paths:
+      - '**/*.java'
+      - 'pom.xml'
+  # Allow manual trigger for debugging
+  workflow_dispatch:
+
+# Cancel older runs when new commits are pushed to the same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: maven
+
+      - name: Run tests
+        if: github.event_name == 'pull_request'
+        run: mvn -B test
+
+      - name: Run tests with coverage
+        if: github.event_name != 'pull_request'
+        run: |
+          mvn -B org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report
+
+      - name: Convert JaCoCo XML to LCOV
+        if: github.event_name != 'pull_request'
+        run: |
+          # Install pycobertura/jacoco-to-lcov converter
+          python3 -m pip install lcov_cobertura 2>/dev/null || true
+          # Find the JaCoCo CSV/XML report and convert to lcov
+          JACOCO_XML=$(find . -path '*/site/jacoco/jacoco.xml' -print -quit)
+          if [ -n "$JACOCO_XML" ]; then
+            python3 -c "
+          import xml.etree.ElementTree as ET
+          import os
+
+          tree = ET.parse('$JACOCO_XML')
+          root = tree.getroot()
+
+          lcov_lines = []
+          for package in root.findall('.//package'):
+              pkg_name = package.get('name', '')
+              for sourcefile in package.findall('sourcefile'):
+                  sf_name = sourcefile.get('name', '')
+                  source_path = pkg_name.replace('/', os.sep) + '/' + sf_name if pkg_name else sf_name
+                  lcov_lines.append('TN:')
+                  lcov_lines.append(f'SF:{source_path}')
+                  for line in sourcefile.findall('line'):
+                      nr = line.get('nr')
+                      ci = int(line.get('ci', 0))
+                      lcov_lines.append(f'DA:{nr},{ci}')
+                  lcov_lines.append('end_of_record')
+
+          os.makedirs('coverage', exist_ok=True)
+          with open('coverage/lcov.info', 'w') as f:
+              f.write('\n'.join(lcov_lines) + '\n')
+          print('Generated coverage/lcov.info')
+          "
+          else
+            echo 'JaCoCo XML report not found, creating empty lcov.info'
+            mkdir -p coverage
+            touch coverage/lcov.info
+          fi
+
+      - name: Upload coverage report
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/lcov.info
