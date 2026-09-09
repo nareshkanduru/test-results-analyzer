@@ -463,17 +463,18 @@ public class ResultDataTest {
     }
 
     @Test
-    public void getJsonObjectWithNullNameAndUrl() {
-        // Verify JSON serialization handles null name and url fields gracefully
+    public void getJsonObjectOmitsNullNameAndUrl() {
+        // getJsonObject puts name and url unconditionally, but json-lib discards an entry whose value is null, so both keys are absent rather than present-and-null. failureMessage is omitted by an explicit empty check. Anything reading this JSON has to treat a missing name as the null case.
         ConcreteResultData data = new ConcreteResultData();
         data.evaluateStatus();
 
         JSONObject json = data.getJsonObject();
 
-        assertTrue(json.containsKey("name"));
-        assertTrue(json.containsKey("url"));
-        assertTrue(json.containsKey("status"));
-        assertEquals("FAILED", json.getString("status"));
+        assertEquals(
+                "{\"totalTests\":0,\"totalFailed\":0,\"totalPassed\":0,\"totalSkipped\":0,"
+                        + "\"isPassed\":false,\"isSkipped\":false,\"totalTimeTaken\":0,"
+                        + "\"status\":\"FAILED\",\"children\":[]}",
+                json.toString());
     }
 
     @Test
