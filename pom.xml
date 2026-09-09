@@ -37,13 +37,32 @@
             <artifactId>junit</artifactId>
             <version>1.2-beta-4</version>
         </dependency>
+        <!-- Overrides the versions parent 1.594 manages. Both processors write their index by reading the existing one first and catching FileNotFoundException, and on Java 9 and later that read throws NoSuchFileException instead, so every compile fails before it reaches a single test. annotation-indexer writes the ExportedBean index and sezpoz writes the hudson.Extension one, so both have to move. -->
+        <dependency>
+            <groupId>org.jenkins-ci</groupId>
+            <artifactId>annotation-indexer</artifactId>
+            <version>1.17</version>
+        </dependency>
+        <dependency>
+            <groupId>net.java.sezpoz</groupId>
+            <artifactId>sezpoz</artifactId>
+            <version>1.13</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- The tests stub Jenkins' own TabulatedResult and TestObject, which are abstract and reach back into a running Jenkins, so there is nothing to construct directly. 3.x is the last line that still targets Java 8, which this plugin's compiler settings require. -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>3.12.4</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 	<!-- get every artifact through repo.jenkins-ci.org, which proxies all the 
 		artifacts that we need -->
 	<repositories>
 		<repository>
 			<id>repo.jenkins-ci.org</id>
-			<url>http://repo.jenkins-ci.org/public/</url>
+			<url>https://repo.jenkins-ci.org/public/</url>
 		</repository>
 	</repositories>
 	<distributionManagement>
@@ -56,7 +75,7 @@
 	<pluginRepositories>
 		<pluginRepository>
 			<id>repo.jenkins-ci.org</id>
-			<url>http://repo.jenkins-ci.org/public/</url>
+			<url>https://repo.jenkins-ci.org/public/</url>
 		</pluginRepository>
 	</pluginRepositories>
 
